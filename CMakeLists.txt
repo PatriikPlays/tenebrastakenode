@@ -1,5 +1,7 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.11)
 project(tenebrastakenode)
+cmake_policy(SET CMP0135 NEW)
+include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,6 +18,9 @@ find_package(OpenSSL REQUIRED)
 
 include_directories(/usr/include/curl/)
 
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz)
+FetchContent_MakeAvailable(json)
+
 set(USE_TLS ON)
 add_subdirectory(${CMAKE_SOURCE_DIR}/IXWebSocket)
 
@@ -24,4 +29,4 @@ target_link_libraries(tenebrastakenode OpenSSL::SSL)
 target_link_libraries(tenebrastakenode /usr/lib/libz.so.1)
 target_link_libraries(tenebrastakenode ixwebsocket)
 target_link_libraries(tenebrastakenode curl)
-target_include_directories(tenebrastakenode PUBLIC /usr/include/nlohmann)
+target_link_libraries(tenebrastakenode nlohmann_json::nlohmann_json)
