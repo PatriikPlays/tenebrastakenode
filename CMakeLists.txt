@@ -12,6 +12,15 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     elseif(MSVC)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /O2")
     endif()
+
+    set(CMAKE_STRIP "strip")
+    set(CMAKE_EXE_LINKER_FLAGS "-s")
+
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT result)
+    if(result)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
 endif()
 
 find_package(OpenSSL REQUIRED)
@@ -26,7 +35,7 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/IXWebSocket)
 
 add_executable(tenebrastakenode main.cpp)
 target_link_libraries(tenebrastakenode OpenSSL::SSL)
-target_link_libraries(tenebrastakenode /usr/lib/libz.so.1)
+target_link_libraries(tenebrastakenode /usr/lib/libz.so.1) # TODO: fix this.
 target_link_libraries(tenebrastakenode ixwebsocket)
 target_link_libraries(tenebrastakenode curl)
 target_link_libraries(tenebrastakenode nlohmann_json::nlohmann_json)
