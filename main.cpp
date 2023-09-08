@@ -2,7 +2,6 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
-//#include <ctime>
 #include <openssl/sha.h>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
@@ -18,54 +17,6 @@
 using json = nlohmann::json;
 
 std::string version = "0.1";
-
-std::string sha256(const std::string& str) {
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    SHA256((const unsigned char*)str.c_str(), str.length(), hash);
-
-    std::stringstream ss;
-    for (int i = 0; i < SHA256_DIGEST_LENGTH; i++) {
-        ss << std::hex << std::setw(2) << std::setfill('0') << (int)hash[i];
-    }
-
-    return ss.str();
-}
-
-char hexToBase36(int input) {
-    for (int i = 6; i <= 251; i += 7) {
-        if (input <= i) {
-            if (i <= 69) {
-                return '0' + (i - 6) / 7;
-            }
-            return 'a' + (i - 76) / 7;
-        }
-    }
-    return 'e';
-}
-
-std::string makeV2Address(std::string key) {
-    std::vector<std::string> chars(9, "");
-    std::string prefix = "t";
-    std::string hash = sha256(sha256(key));
-
-    for (int i = 0; i <= 8; i++) {
-        chars[i] = hash.substr(0, 2);
-        hash = sha256(sha256(hash));
-    }
-
-    for (int i = 0; i <= 8;) {
-        int index = std::stoi(hash.substr(2 * i, 2), nullptr, 16) % 9;
-
-        if (chars[index].empty()) {
-            hash = sha256(hash);
-        } else {
-            prefix += hexToBase36(std::stoi(chars[index], nullptr, 16));
-            chars[index] = "";
-            i++;
-        }
-    }
-    return prefix;
-};
 
 size_t writeCallback(void* contents, size_t size, size_t nmemb, std::string* response) {
     size_t totalSize = size * nmemb;
@@ -246,17 +197,15 @@ void run(std::string syncNode, std::string privKey) {
     ix::initNetSystem();
 
     ix::WebSocket webSocket;
+    
     webSocket.setUrl(wsUrl);
-
-    std::string curHash = "";
-    std::string address = makeV2Address(privKey);
 
     uint64_t messageId = 1;
     uint64_t loginMessageId = 0;
 
     std::time_t lastKeepalive = std::time(0);
 
-    webSocket.setOnMessageCallback([&messageId, privKey, syncNode, &webSocket, &loginMessageId, &curHash, &address, &lastKeepalive](const ix::WebSocketMessagePtr& msg)
+    webSocket.setOnMessageCallback([&messageId, privKey, syncNode, &webSocket, &loginMessageId, &lastKeepalive](const ix::WebSocketMessagePtr& msg)
         {
             if (msg->type == ix::WebSocketMessageType::Message)
             {
@@ -278,11 +227,8 @@ void run(std::string syncNode, std::string privKey) {
                         lastKeepalive = std::time(0);
                     } else if (!parsedMsg.contains("ok") || parsedMsg["ok"] == true) {
                         if (parsedMsg["id"] == loginMessageId) {
-                            address = parsedMsg["address"]["address"];
+                            std::string address = parsedMsg["address"]["address"];
                             std::cout << "Logged in as " << address << std::endl;
-                        } else if (parsedMsg["type"] == "hello") {
-                            curHash = parsedMsg["last_block"]["hash"];
-                            std::cout << "Received hello block " << curHash << std::endl;
 
                             std::string validator = "";
                             try {
@@ -295,9 +241,8 @@ void run(std::string syncNode, std::string privKey) {
                                 std::cout << "Were already the validator, submitting" << std::endl;
 
                                 std::string nonce = genNonce();
-                                std::string resultingBlock = sha256(address + curHash.substr(0,12) + nonce);
 
-                                std::cout << "Submitting block " << resultingBlock << " with nonce " << nonce << std::endl;
+                                std::cout << "Submitting block with nonce " << nonce << std::endl;
 
                                 json submitBlock = {
                                     {"id", messageId},
@@ -311,13 +256,11 @@ void run(std::string syncNode, std::string privKey) {
                             }
                         } else if (parsedMsg["type"] == "event") {
                             if (parsedMsg["event"] == "block") {
-                                curHash = parsedMsg["block"]["hash"];
-                                std::cout << "Received new block " << curHash << std::endl;
+                                std::cout << "Received new block " << parsedMsg["block"]["hash"] << std::endl;
                             } else if (parsedMsg["event"] == "validator") {
                                 std::string nonce = genNonce();
-                                std::string resultingBlock = sha256(address + curHash.substr(0,12) + nonce);
-
-                                std::cout << "Submitting block " << resultingBlock << " with nonce " << nonce << std::endl;
+                                
+                                std::cout << "Submitting block with nonce " << nonce << std::endl;
 
                                 json submitBlock = {
                                     {"id", messageId},
