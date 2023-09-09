@@ -39,3 +39,4 @@ target_link_libraries(tenebrastakenode /usr/lib/libz.so.1) # TODO: fix this.
 target_link_libraries(tenebrastakenode ixwebsocket)
 target_link_libraries(tenebrastakenode curl)
 target_link_libraries(tenebrastakenode nlohmann_json::nlohmann_json)
+

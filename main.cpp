@@ -2,9 +2,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
-#include <openssl/sha.h>
 #include <openssl/rand.h>
-#include <openssl/evp.h>
 #include <unistd.h>
 #include <openssl/bio.h>
 #include <openssl/buffer.h>
@@ -142,45 +140,16 @@ std::string getValidator(std::string syncNode) {
     return ret;
 }
 
-std::string base64_encode(const unsigned char* data, size_t input_length) {
-    BIO* bio = nullptr;
-    BIO* b64 = nullptr;
-    BUF_MEM* bufferPtr = nullptr;
-    std::string result;
+std::string genNonce(size_t size) {
+    std::string nonce;
+    nonce.reserve(size);
 
-    // Create a Base64 filter BIO
-    b64 = BIO_new(BIO_f_base64());
-    bio = BIO_new(BIO_s_mem());
-    bio = BIO_push(b64, bio);
+    for (int i = 0; i<size; i++)
+        nonce = nonce + char(rand() % 26 + 97);
 
-    // Disable line breaks in the output
-    BIO_set_flags(bio, BIO_FLAGS_BASE64_NO_NL);
+    std::cout << nonce << std::endl;
 
-    // Write the data to the BIO
-    BIO_write(bio, data, static_cast<int>(input_length));
-    BIO_flush(bio);
-    
-    // Get the encoded string
-    BIO_get_mem_ptr(bio, &bufferPtr);
-    
-    // Copy the encoded string from the BIO buffer
-    result.assign(bufferPtr->data, bufferPtr->length - 1);
-
-    BIO_free_all(bio);
-
-    return result;
-}
-
-std::string genNonce() {
-    unsigned char* buf = new unsigned char[16];
-    while (true) {
-        if (RAND_bytes(buf, sizeof(buf)) == 1) {
-            break;
-        }
-    }
-    std::string str = base64_encode(buf, sizeof(buf));
-    delete[] buf;
-    return str;
+    return nonce;
 }
 
 void run(std::string syncNode, std::string privKey) {
@@ -209,7 +178,7 @@ void run(std::string syncNode, std::string privKey) {
         {
             if (msg->type == ix::WebSocketMessageType::Message)
             {
-                //std::cout << "received message: " << msg->str << std::endl;
+                std::cout << "received message: " << msg->str << std::endl;
 
                 json parsedMsg;
                 bool ok = false;
@@ -240,7 +209,7 @@ void run(std::string syncNode, std::string privKey) {
                             if (validator.length() > 0 && validator == address) {
                                 std::cout << "Were already the validator, submitting" << std::endl;
 
-                                std::string nonce = genNonce();
+                                std::string nonce = genNonce(16);
 
                                 std::cout << "Submitting block with nonce " << nonce << std::endl;
 
@@ -258,7 +227,7 @@ void run(std::string syncNode, std::string privKey) {
                             if (parsedMsg["event"] == "block") {
                                 std::cout << "Received new block " << parsedMsg["block"]["hash"] << std::endl;
                             } else if (parsedMsg["event"] == "validator") {
-                                std::string nonce = genNonce();
+                                std::string nonce = genNonce(16);
                                 
                                 std::cout << "Submitting block with nonce " << nonce << std::endl;
 
