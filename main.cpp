@@ -147,12 +147,10 @@ std::string genNonce(size_t size) {
     for (int i = 0; i<size; i++)
         nonce = nonce + char(rand() % 26 + 97);
 
-    std::cout << nonce << std::endl;
-
     return nonce;
 }
 
-void run(std::string syncNode, std::string privKey) {
+void run(std::string syncNode, std::string privKey, bool debugEnabled) {
     std::cout << "Using " << syncNode << " as tenebra node" << std::endl;
 
     std::string wsUrl;
@@ -174,11 +172,13 @@ void run(std::string syncNode, std::string privKey) {
 
     std::time_t lastKeepalive = std::time(0);
 
-    webSocket.setOnMessageCallback([&messageId, privKey, syncNode, &webSocket, &loginMessageId, &lastKeepalive](const ix::WebSocketMessagePtr& msg)
+    webSocket.setOnMessageCallback([&messageId, privKey, syncNode, &webSocket, &loginMessageId, &lastKeepalive, debugEnabled](const ix::WebSocketMessagePtr& msg)
         {
             if (msg->type == ix::WebSocketMessageType::Message)
             {
-                std::cout << "received message: " << msg->str << std::endl;
+                if (debugEnabled) {
+                    std::cout << "DEBUG Received message: " << msg->str << std::endl;
+                }
 
                 json parsedMsg;
                 bool ok = false;
@@ -315,10 +315,14 @@ std::string trimUrlEndSlashes(const std::string& str) {
 }
 
 int main() {
+    using namespace std::chrono;
+
     std::cout << "tenebrastakenode v" << version << std::endl;
 
     char* privKey = getenv("TENEBRA_PKEY");
     std::string syncNode = "https://tenebra.lil.gay";
+
+    bool debug = false;
 
     if (privKey == NULL) {
         std::cout << "Missing TENEBRA_PKEY env variable" << std::endl;
@@ -329,10 +333,20 @@ int main() {
         syncNode = getenv("TENEBRA_NODE");
     }
 
+    const char* debugStr = getenv("DEBUG");
+
+    if (debugStr != nullptr && (std::string(debugStr) == "1" || std::string(debugStr) == "true")) {
+        debug = true;
+        std::cout << "Running with debug enabled" << std::endl;
+    }
+
     syncNode = trimUrlEndSlashes(syncNode);
+    
+    uint64_t time_ms = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    srand((uint32_t)(time_ms % 4294967296));
 
     while (true) {
-        run(syncNode, privKey);
+        run(syncNode, privKey, debug);
         std::cout << "Exited, restarting in 5 seconds..." << std::endl;
         sleep(5);
     }
