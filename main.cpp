@@ -9,8 +9,11 @@
 #include <ixwebsocket/IXNetSystem.h>
 #include <ixwebsocket/IXWebSocket.h>
 #include <ixwebsocket/IXUserAgent.h>
-#include <curl/curl.h>
 #include <nlohmann/json.hpp>
+
+#define CPPHTTPLIB_OPENSSL_SUPPORT
+#define CPPHTTPLIB_CONNECTION_TIMEOUT_SECOND 10
+#include "httplib.h"
 
 using json = nlohmann::json;
 
@@ -22,122 +25,64 @@ size_t writeCallback(void* contents, size_t size, size_t nmemb, std::string* res
     return totalSize;
 }
 
-std::string getWSUrl(std::string syncNode) {
-    CURL* curl;
-    CURLcode res;
-    std::string url = syncNode+"/ws/start";
-    long timeoutSeconds = 10;
+std::string getWSUrl(std::string syncNode) {    
+    httplib::Client cli(syncNode);
 
-    std::string ret;
+    auto res = cli.Post("/ws/start");
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (curl) {
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "");
-
-        // Set the timeout value in seconds
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSeconds);
-
-        std::string response;
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-
-        res = curl_easy_perform(curl);
-
-        if (res != CURLE_OK) {
-            std::cout << "Failed to POST " << url << ": " << curl_easy_strerror(res) << std::endl;
-            throw std::exception();
-        } else {
-            long response_code;
-            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-
-            if (response_code != 200) {
-                std::cout << "Failed to POST " << url << ": Got response code " << response_code << std::endl;
-                throw std::exception();
-            }
-
-            try {
-                json parsedResponse = json::parse(response);
-
-                if (parsedResponse["ok"]) {
-                    ret = parsedResponse["url"];
-                } else {
-                    std::cout << "WS start response not ok: " << response << std::endl;
-                    throw std::exception();
-                }
-            } catch (json::parse_error& e) {
-                std::cout << "Failed to parse WS start response: " << e.what() << '\n'
-                  << "exception id: " << e.id << '\n'
-                  << "byte position of error: " << e.byte << std::endl;
-                throw std::exception();
-            }
-        }
-
-        curl_easy_cleanup(curl);
+    if (res == nullptr) {
+        std::cout << "Failed to start WS, no response received" << std::endl;
+        throw std::exception();
     }
-    curl_global_cleanup();
 
-    return ret;
+    if (res->status != 200) {
+        std::cout << "Received non 200 response code from WS start: " << res->status << std::endl;
+        throw std::exception();
+    }
+
+    try {
+        json parsedResponse = json::parse(res->body);
+
+        if (parsedResponse["ok"]!=NULL && parsedResponse["url"]!=NULL) {
+            return parsedResponse["url"];
+        } else {
+            std::cout << "WS start response invalid or not ok" << std::endl;
+            throw std::exception();
+        }
+    } catch (json::parse_error& e) {
+        std::cout << "WS start response invalid, failed to parse response" << std::endl;
+        throw std::exception();
+    }
 }
 
 std::string getValidator(std::string syncNode) {
-    CURL* curl;
-    CURLcode res;
-    std::string url = syncNode+"/staking/validator";
-    long timeoutSeconds = 10;
+    httplib::Client cli(syncNode);
 
-    std::string ret;
+    auto res = cli.Get("/staking/validator");
 
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-    curl = curl_easy_init();
-    if (curl) {
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-
-        // Set the timeout value in seconds
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeoutSeconds);
-
-        std::string response;
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
-
-        res = curl_easy_perform(curl);
-
-        if (res != CURLE_OK) {
-            std::cout << "Failed to GET " << url << ": " << curl_easy_strerror(res) << std::endl;
-            throw std::exception();
-        } else {
-            long response_code;
-            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-
-            if (response_code != 200) {
-                std::cout << "Failed to GET " << url << ": Got response code " << response_code << std::endl;
-                throw std::exception();
-            }
-
-            try {
-                json parsedResponse = json::parse(response);
-
-                if (parsedResponse["ok"]) {
-                    ret = parsedResponse["validator"];
-                } else {
-                    std::cout << "Validator response not ok: " << response << std::endl;
-                    throw std::exception();
-                }
-            } catch (json::parse_error& e) {
-                std::cout << "Failed to parse validator response: " << e.what() << '\n'
-                  << "exception id: " << e.id << '\n'
-                  << "byte position of error: " << e.byte << std::endl;
-                throw std::exception();
-            }
-        }
-
-        curl_easy_cleanup(curl);
+    if (res == nullptr) {
+        std::cout << "Failed to GET validator: no response received" << std::endl;
+        throw std::exception();
     }
-    curl_global_cleanup();
 
-    return ret;
+    if (res->status != 200) {
+        std::cout << "Failed to GET validator: Got response code " << res->status << std::endl;
+        throw std::exception();
+    }
+
+    try {
+        json parsedResponse = json::parse(res->body);
+
+        if (parsedResponse["ok"]!=NULL && parsedResponse["validator"]!=NULL) {
+            return parsedResponse["validator"];
+        } else {
+            std::cout << "Validator response invalid or not ok: " << res->body << std::endl;
+            throw std::exception();
+        }
+    } catch (json::parse_error& e) {
+        std::cout << "Validator response invalid, failed to parse response: " << res->body << std::endl;
+        throw std::exception();
+    }
 }
 
 std::string genNonce(size_t size) {

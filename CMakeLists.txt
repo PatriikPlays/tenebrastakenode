@@ -34,6 +34,5 @@ add_subdirectory(${CMAKE_SOURCE_DIR}/IXWebSocket)
 add_executable(tenebrastakenode main.cpp)
 target_link_libraries(tenebrastakenode OpenSSL::SSL)
 target_link_libraries(tenebrastakenode ixwebsocket)
-target_link_libraries(tenebrastakenode curl)
 target_link_libraries(tenebrastakenode nlohmann_json::nlohmann_json)
 

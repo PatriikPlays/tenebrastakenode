@@ -1,11 +1,11 @@
 FROM alpine:latest as builder
 
-RUN apk update && apk add --no-cache build-base curl-dev cmake openssl-dev
+RUN apk update && apk add --no-cache build-base cmake openssl-dev zlib-dev
 COPY . .
 RUN cmake -DCMAKE_BUILD_TYPE=RELEASE -S . -B ./build
 RUN cmake --build ./build -j $(nproc)
 
 FROM alpine:latest
 COPY --from=builder /build/tenebrastakenode .
-RUN apk update && apk add --no-cache libcurl ca-certificates libstdc++ libgcc
+RUN apk update && apk add --no-cache ca-certificates libstdc++ libgcc
 ENTRYPOINT ["/tenebrastakenode"]
